@@ -3,6 +3,8 @@ package ru.knyazev.entity;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class ProductDao {
     private final EntityManagerFactory emFactory;
@@ -12,44 +14,59 @@ public class ProductDao {
     }
 
     public Product findById(Long id) {
-        EntityManager em = emFactory.createEntityManager();
-        try {
-            return em.find(Product.class, id);
-        } finally {
-            em.close();
-        }
+        return executeForEntityManager(
+                em -> em.find(Product.class, id)
+        );
     }
 
     public List<Product> findAll() {
-        EntityManager em = emFactory.createEntityManager();
-        em.getTransaction().begin();
-        try {
-            return em.createNamedQuery("allProducts").getResultList();
-        } finally {
-            em.close();
-        }
+        return executeForEntityManager(
+                em -> em.createNamedQuery("allProducts").getResultList()
+        );
     }
 
     public void deleteById(Long id) {
-        EntityManager em = emFactory.createEntityManager();
-        em.getTransaction().begin();
-        Product product = em.find(Product.class, id);
-        if (product != null) {
-            em.remove(product);
-        }
-        em.getTransaction().commit();
-        em.close();
+        executeInTransaction(em -> {
+            Product product = em.find(Product.class, id);
+            if (product != null) {
+                em.remove(product);
+            }
+        });
     }
 
     public void saveOrUpdate(Product product) {
+        executeInTransaction(em -> {
+            if (em.contains(product)) {
+                em.merge(product);
+            } else {
+                em.persist(product);
+            }
+        });
+    }
+
+    private <R> R executeForEntityManager(Function<EntityManager, R> function) {
         EntityManager em = emFactory.createEntityManager();
-        if (em.contains(product)) {
-            em.getTransaction().begin();
-            em.merge(product);
-            em.getTransaction().commit();
-        } else {
-            em.persist(product);
+        try {
+            return function.apply(em);
+        } finally {
+            if (em != null) {
+                em.close();
+            }
         }
-        em.close();
+    }
+
+    private void executeInTransaction(Consumer<EntityManager> consumer) {
+        EntityManager em = emFactory.createEntityManager();
+        try {
+            em.getTransaction().begin();
+            consumer.accept(em);
+            em.getTransaction().commit();
+        } catch (Exception ex) {
+            em.getTransaction().rollback();
+        } finally {
+            if (em != null) {
+                em.close();
+            }
+        }
     }
 }
