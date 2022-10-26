@@ -3,34 +3,39 @@ package ru.knyazev.entity;
 import lombok.*;
 
 import javax.persistence.*;
+import java.math.BigDecimal;
+import java.util.List;
 
 @Entity
 @Table(name = "products")
 @NoArgsConstructor
 @ToString
+@Getter
+@Setter
 @NamedQueries({
         @NamedQuery(name = "productByTitle", query = "from Product p where p.title=:title"),
         @NamedQuery(name = "allProducts", query = "from Product")
 })
 public class Product {
 
-    @Getter
-    @Setter
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Getter
-    @Setter
     @Column(length = 128, unique = true, nullable = false)
     private String title;
 
-    @Getter
-    @Setter
     @Column(nullable = false)
-    private int cost;
+    private BigDecimal cost;
 
-    public Product(String title, int cost) {
+    @ManyToMany
+    private List<Consumer> consumers;
+
+    @OneToMany(mappedBy = "product")
+    private List<LineItem> lineItems;
+
+
+    public Product(String title, BigDecimal cost) {
         this.title = title;
         this.cost = cost;
     }
